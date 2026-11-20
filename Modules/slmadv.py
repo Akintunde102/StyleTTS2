@@ -1,3 +1,6 @@
+
+def _wav2d(x):
+    return x.reshape(x.shape[0], -1)
 import torch
 import numpy as np
 import torch.nn.functional as F
@@ -195,39 +198,39 @@ class SLMAdversarialLoss(torch.nn.Module):
             if use_rec:  # use reconstructed (shorter lengths), do length invariant regularization
                 if wav.size(-1) > y_pred.size(-1):
                     real_GP = wav[:, :, :crop_size]
-                    out_crop = self.wl.discriminator_forward(real_GP.detach().squeeze())
-                    out_org = self.wl.discriminator_forward(wav.detach().squeeze())
+                    out_crop = self.wl.discriminator_forward(_wav2d(real_GP.detach()))
+                    out_org = self.wl.discriminator_forward(_wav2d(wav.detach()))
                     loss_reg = F.l1_loss(out_crop, out_org[..., : out_crop.size(-1)])
 
                     if np.random.randint(0, 2) == 0:
                         d_loss = self.wl.discriminator(
-                            real_GP.detach().squeeze(), y_pred.detach().squeeze()
+                            _wav2d(real_GP.detach()), _wav2d(y_pred.detach())
                         ).mean()
                     else:
                         d_loss = self.wl.discriminator(
-                            wav.detach().squeeze(), y_pred.detach().squeeze()
+                            _wav2d(wav.detach()), _wav2d(y_pred.detach())
                         ).mean()
                 else:
                     real_GP = y_pred[:, :, :crop_size]
-                    out_crop = self.wl.discriminator_forward(real_GP.detach().squeeze())
-                    out_org = self.wl.discriminator_forward(y_pred.detach().squeeze())
+                    out_crop = self.wl.discriminator_forward(_wav2d(real_GP.detach()))
+                    out_org = self.wl.discriminator_forward(_wav2d(y_pred.detach()))
                     loss_reg = F.l1_loss(out_crop, out_org[..., : out_crop.size(-1)])
 
                     if np.random.randint(0, 2) == 0:
                         d_loss = self.wl.discriminator(
-                            wav.detach().squeeze(), real_GP.detach().squeeze()
+                            _wav2d(wav.detach()), _wav2d(real_GP.detach())
                         ).mean()
                     else:
                         d_loss = self.wl.discriminator(
-                            wav.detach().squeeze(), y_pred.detach().squeeze()
+                            _wav2d(wav.detach()), _wav2d(y_pred.detach())
                         ).mean()
 
                 # regularization (ignore length variation)
                 d_loss += loss_reg
 
-                out_gt = self.wl.discriminator_forward(y_rec_gt.detach().squeeze())
+                out_gt = self.wl.discriminator_forward(_wav2d(y_rec_gt.detach()))
                 out_rec = self.wl.discriminator_forward(
-                    y_rec_gt_pred.detach().squeeze()
+                    _wav2d(y_rec_gt_pred.detach())
                 )
 
                 # regularization (ignore reconstruction artifacts)
@@ -235,13 +238,13 @@ class SLMAdversarialLoss(torch.nn.Module):
 
             else:
                 d_loss = self.wl.discriminator(
-                    wav.detach().squeeze(), y_pred.detach().squeeze()
+                    _wav2d(wav.detach()), _wav2d(y_pred.detach())
                 ).mean()
         else:
             d_loss = 0
 
         # generator loss
-        gen_loss = self.wl.generator(y_pred.squeeze())
+        gen_loss = self.wl.generator(_wav2d(y_pred))
 
         gen_loss = gen_loss.mean()
 

@@ -676,6 +676,10 @@ class Decoder(nn.Module):
         )
 
     def forward(self, asr, F0_curve, N, s):
+        if F0_curve.dim() == 3: F0_curve = F0_curve.squeeze(1) if F0_curve.shape[1] == 1 else F0_curve.squeeze(-1)
+        if N.dim() == 3: N = N.squeeze(1) if N.shape[1] == 1 else N.squeeze(-1)
+        if F0_curve.dim() == 1: F0_curve = F0_curve.unsqueeze(0)
+        if N.dim() == 1: N = N.unsqueeze(0)
         if self.training:
             downlist = [0, 3, 7]
             F0_down = downlist[random.randint(0, 2)]

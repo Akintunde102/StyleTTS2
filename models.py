@@ -862,12 +862,26 @@ def build_model(args, text_aligner, pitch_extractor, bert):
 
 
 def load_checkpoint(model, optimizer, path, load_only_params=True, ignore_modules=[]):
-    state = torch.load(path, map_location="cpu")
-    params = state["net"]
+    state = torch.load(path, map_location='cpu', weights_only=False)
+    params = state['net']
     for key in model:
         if key in params and key not in ignore_modules:
-            print("%s loaded" % key)
-            model[key].load_state_dict(params[key], strict=False)
+            print('%s loaded' % key)
+            target_keys = list(model[key].state_dict().keys())
+            need_mod = len(target_keys) > 0 and target_keys[0].startswith('module.')
+            sd_in = {}
+            for k, v in params[key].items():
+                if need_mod and not k.startswith('module.'): k = 'module.' + k
+                elif not need_mod and k.startswith('module.'): k = k[7:]
+                sd_in[k] = v
+            model[key].load_state_dict(sd_in, strict=False)
+    # spectral_norm warmup so style/predictor encoders work in eval mode
+    for enc in ['style_encoder', 'predictor_encoder']:
+        if enc in model:
+            dev = next(model[enc].parameters()).device
+            model[enc].train()
+            with torch.no_grad():
+                _ = model[enc](torch.randn(1, 1, 80, 100, device=dev))
     _ = [model[key].eval() for key in model]
 
     if not load_only_params:

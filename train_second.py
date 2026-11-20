@@ -7,7 +7,7 @@ from munch import Munch
 import numpy as np
 import torch
 
-torch.autograd.set_detect_anomaly(True)
+torch.autograd.set_detect_anomaly(False)
 
 if getattr(torch, "_original_load", None) is None:
     torch._original_load = torch.load
@@ -544,8 +544,8 @@ def main(config_path):
             )
 
             y_rec_gt = wav.unsqueeze(1)
-            y_rec_gt_pred = model.decoder(en, F0_real, N_real, s)
-
+            with torch.no_grad():
+                y_rec_gt_pred = model.decoder(en, F0_real, N_real, s)
             if epoch >= joint_epoch:
                 # ground truth from recording
                 wav = y_rec_gt  # use recording since decoder is tuned
@@ -617,7 +617,14 @@ def main(config_path):
             )
 
             running_loss += loss_mel.item()
+            if torch.isnan(g_loss) or torch.isinf(g_loss):
+                print(f'⚠️ NaN/Inf g_loss skipped at epoch {epoch} step {i}')
+                optimizer.zero_grad()
+                continue
             g_loss.backward()
+            torch.nn.utils.clip_grad_norm_(model.bert.parameters(), 5.0)
+            torch.nn.utils.clip_grad_norm_(model.predictor.parameters(), 5.0)
+            torch.nn.utils.clip_grad_norm_(model.diffusion.parameters(), 5.0)
 
             optimizer.step("bert_encoder")
             optimizer.step("bert")
